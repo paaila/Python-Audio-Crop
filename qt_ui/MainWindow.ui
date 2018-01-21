@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>870</width>
+    <width>979</width>
     <height>553</height>
    </rect>
   </property>
@@ -16,84 +16,92 @@
   <widget class="QWidget" name="centralwidget">
    <layout class="QHBoxLayout" name="horizontalLayout">
     <item>
-     <widget class="QListView" name="file_list"/>
-    </item>
-    <item>
-     <widget class="QTabWidget" name="widget_tab">
-      <property name="currentIndex">
-       <number>0</number>
+     <widget class="QSplitter" name="horizontal_splitter">
+      <property name="orientation">
+       <enum>Qt::Horizontal</enum>
       </property>
-      <widget class="QWidget" name="tab">
-       <attribute name="title">
-        <string>Tab 1</string>
-       </attribute>
-       <widget class="QPushButton" name="button_record">
-        <property name="geometry">
-         <rect>
-          <x>10</x>
-          <y>80</y>
-          <width>85</width>
-          <height>26</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Start</string>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="button_pause">
-        <property name="geometry">
-         <rect>
-          <x>120</x>
-          <y>80</y>
-          <width>85</width>
-          <height>26</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>Pause</string>
-        </property>
-       </widget>
-       <widget class="QPushButton" name="button_seek">
-        <property name="geometry">
-         <rect>
-          <x>70</x>
-          <y>160</y>
-          <width>85</width>
-          <height>26</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>set_position</string>
-        </property>
-       </widget>
-       <widget class="QLineEdit" name="input_seek">
-        <property name="geometry">
-         <rect>
-          <x>30</x>
-          <y>30</y>
-          <width>113</width>
-          <height>24</height>
-         </rect>
-        </property>
-       </widget>
-       <widget class="QProgressBar" name="progressBar">
-        <property name="geometry">
-         <rect>
-          <x>50</x>
-          <y>220</y>
-          <width>118</width>
-          <height>23</height>
-         </rect>
-        </property>
-        <property name="value">
-         <number>24</number>
-        </property>
-       </widget>
+      <widget class="QTreeView" name="directory_view">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="MinimumExpanding">
+         <horstretch>1</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
       </widget>
-      <widget class="QWidget" name="tab_2">
-       <attribute name="title">
-        <string>Tab 2</string>
-       </attribute>
+      <widget class="QTabWidget" name="widget_tab">
+       <property name="sizePolicy">
+        <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+         <horstretch>6</horstretch>
+         <verstretch>0</verstretch>
+        </sizepolicy>
+       </property>
+       <property name="focusPolicy">
+        <enum>Qt::NoFocus</enum>
+       </property>
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="tab">
+        <attribute name="title">
+         <string>Audio Editor</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout_2">
+         <item>
+          <widget class="QSplitter" name="vertical_splitter">
+           <property name="orientation">
+            <enum>Qt::Vertical</enum>
+           </property>
+           <widget class="QTextBrowser" name="text_browser">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>5</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="font">
+             <font>
+              <pointsize>30</pointsize>
+             </font>
+            </property>
+            <property name="html">
+             <string>&lt;!DOCTYPE HTML PUBLIC &quot;-//W3C//DTD HTML 4.0//EN&quot; &quot;http://www.w3.org/TR/REC-html40/strict.dtd&quot;&gt;
+&lt;html&gt;&lt;head&gt;&lt;meta name=&quot;qrichtext&quot; content=&quot;1&quot; /&gt;&lt;style type=&quot;text/css&quot;&gt;
+p, li { white-space: pre-wrap; }
+&lt;/style&gt;&lt;/head&gt;&lt;body style=&quot; font-family:'aakar'; font-size:30pt; font-weight:456; font-style:normal;&quot;&gt;
+&lt;p style=&quot; margin-top:12px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;# Open a wav file to view audio graph&lt;/span&gt;&lt;/p&gt;
+&lt;p style=&quot; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;&quot;&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;# Open a text file to view it's content&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+           </widget>
+           <widget class="QWidget" name="graph_widget" native="true">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+              <horstretch>0</horstretch>
+              <verstretch>1</verstretch>
+             </sizepolicy>
+            </property>
+            <layout class="QHBoxLayout" name="horizontalLayout_2"/>
+           </widget>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="tab_2">
+        <attribute name="title">
+         <string>Text Editor</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <widget class="QPlainTextEdit" name="text_edit">
+           <property name="enabled">
+            <bool>true</bool>
+           </property>
+           <property name="readOnly">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
       </widget>
      </widget>
     </item>
@@ -104,7 +112,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>870</width>
+     <width>979</width>
      <height>24</height>
     </rect>
    </property>
@@ -112,59 +120,9 @@
   <widget class="QStatusBar" name="statusbar"/>
  </widget>
  <resources/>
- <connections>
-  <connection>
-   <sender>button_record</sender>
-   <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>toggle_stop()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>453</x>
-     <y>150</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>443</x>
-     <y>442</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>button_pause</sender>
-   <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>toggle_pause()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>566</x>
-     <y>151</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>507</x>
-     <y>442</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>button_seek</sender>
-   <signal>clicked()</signal>
-   <receiver>MainWindow</receiver>
-   <slot>seek()</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>516</x>
-     <y>234</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>532</x>
-     <y>587</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
  <slots>
-  <slot>toggle_pause()</slot>
-  <slot>toggle_stop()</slot>
   <slot>seek()</slot>
+  <slot>replot()</slot>
  </slots>
 </ui>

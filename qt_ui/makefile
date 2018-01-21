@@ -4,7 +4,6 @@ generate: MainWindow.py
 
 clean:
 	rm -rf MainWindow.py
-
 remake:clean generate
 
 
