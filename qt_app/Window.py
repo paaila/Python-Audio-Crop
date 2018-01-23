@@ -1,21 +1,21 @@
-from PyQt5.QtWidgets import QMainWindow, QWidget, QFileSystemModel, QMessageBox
-from enum import Enum
-import random
-import wave
-import numpy
-from PyQt5.QtCore import pyqtSlot, QUrl, QTimer, QDir, QModelIndex, QFile, QFileSelector, QTextStream
-from PyQt5.QtGui import QFont
-from qt_ui.MainWindow import Ui_MainWindow
-from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-from PyQt5.QtCore import Qt
-from PyQt5.QtCore import pyqtSignal
-from PyQt5.QtCore import pyqtSlot
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
 import os
 import traceback
-import datetime
-import time
+import wave
+from enum import Enum
+
+import numpy
+from PyQt5.QtCore import QUrl, QTimer, QDir, QModelIndex, QFile, QTextStream
+from PyQt5.QtCore import Qt
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtCore import QSettings
+from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
+from PyQt5.QtWidgets import QMainWindow, QFileSystemModel, QMessageBox
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+
+from nlp import tokenizer
+from qt_ui.MainWindow import Ui_MainWindow
 
 
 class Window(QMainWindow):
@@ -29,8 +29,12 @@ class Window(QMainWindow):
         TwoCursorPlaced = 3
 
     def __init__(self):
+
         super().__init__()
         self.player = QMediaPlayer()
+        self.sentence_tokens = []
+        self.wave = None
+        self.crop_count = 0
         self.ui = Ui_MainWindow()
         # setup main Window's UI
         self.ui.setupUi(self)
@@ -48,6 +52,9 @@ class Window(QMainWindow):
         self.seconds_to_prefetch = 60
         self.minimum_file_file_length = 2.5
         self.save_crop_signal.connect(self.save_crop_to_file)
+        self.ui.widget_tab.currentChanged.connect(self.tab_changed)
+        self.ui.text_edit.textChanged.connect(self.text_editor_changed)
+        self.settings = QSettings
 
     def _setup_matplotlib(self):
 
@@ -85,6 +92,9 @@ class Window(QMainWindow):
         # self.ui.directory_view.scrollTo(index)
         # self.ui.directory_view.setCurrentIndex(index)
         self.ui.directory_view.doubleClicked.connect(self.file_selected)
+
+    def _setup_from_settings(self):
+        pass
 
     def plot(self, ydata_byte, start_pos=0):
         ''' plot some random stuff '''
@@ -242,6 +252,16 @@ class Window(QMainWindow):
                 self.crop_line_2.set_color("red")
                 self.canvas.draw()
 
+    def show_line(self, line_no):
+        if self.sentence_tokens:
+            line_index = line_no - 1
+            if line_index >= len(self.sentence_tokens):
+                self.ui.text_browser.setPlainText("-- No more text to display --")
+            else:
+                self.ui.text_browser.setPlainText(self.sentence_tokens[line_index])
+        else:
+            self.ui.text_browser.setPlainText("-- Text file not loaded --")
+
     @pyqtSlot(QMediaPlayer.State)
     def player_status_changed(self, x):
         if x == QMediaPlayer.StoppedState:
@@ -257,7 +277,7 @@ class Window(QMainWindow):
         pass
         # self.ui.progressBar.setValue(int(position / self.player.duration() * 100))
 
-    def read_file(self, filename):
+    def read_audio(self, filename):
         # reset the cursors to default values
         self.wave = wave.open(filename, 'rb')
         self.channels = self.wave.getnchannels()
@@ -290,6 +310,34 @@ class Window(QMainWindow):
         self.crop_line_2.set_color("red")
         self.crop_line_1.set_data([], [])
         self.crop_line_1.set_color("red")
+        if self.sentence_tokens:
+            if self.sentence_tokens:
+                self.ui.text_browser.setPlainText(self.sentence_tokens[0])
+        else:
+            self.ui.text_browser.setPlainText("-----Please open a text file to view it's content------")
+
+    def read_text(self, filename):
+        self.text_file = QFile(filename)
+        if not self.text_file.open(QFile.ReadOnly | QFile.Text):
+            QMessageBox.warning(self, "Application", "Cannot read file", self.text_file.errorString())
+            return
+        in_stream = QTextStream(self.text_file)
+        # self.ui.text_edit.setPlainText(in_stream.readAll())
+
+        # font: QFont = self.ui.text_browser.font()
+        # font.setPixelSize(40)
+        # self.ui.text_browser.setFont(font)
+        data = in_stream.readAll()
+        self.sentence_tokens = tokenizer.nepali_tokenizer.tokenize(data)
+        if self.wave:
+            if self.crop_count >= len(self.sentence_tokens):
+                self.ui.text_browse.setPlainText("-----Please open a text file to view it's content------")
+            else:
+                self.ui.text_browser.setPlainText(self.sentence_tokens[self.crop_count])
+        else:
+            self.ui.text_browser.setPlainText('\n\n'.join(self.sentence_tokens))
+        self.ui.text_edit.setPlainText(data)
+        self.text_file.close()
 
     def zoom_to_crop(self):
         ##TODO : make crop from line1 and line2 position
@@ -337,6 +385,7 @@ class Window(QMainWindow):
                            (self.total_frames_read * 1000) / self.wave.getframerate())
         self.view_limit_range = (self.crop_line_2_pos, self.total_frames_read)
         self.seek_frame(self.crop_line_2_pos)
+        self.settings.setVallue("audio-pos", self.crop_line_2_pos)
         self.crop_line_1.set_data([], [])
         self.crop_line_2.set_data([], [])
         self.crop_line_1.set_color("red")
@@ -346,37 +395,33 @@ class Window(QMainWindow):
 
     @pyqtSlot(QModelIndex)
     def file_selected(self, index):
-        filename = self.file_system_model.filePath(index)
-        if filename.endswith('.txt'):
-            self.text_file = QFile(filename)
-            if not self.text_file.open(QFile.ReadOnly | QFile.Text):
-                QMessageBox.warning(self, "Application", "Cannot read file", self.text_file.errorString())
-                return
-            in_stream = QTextStream(self.text_file)
-            # self.ui.text_edit.setPlainText(in_stream.readAll())
-
-            # font: QFont = self.ui.text_browser.font()
-            # font.setPixelSize(40)
-            # self.ui.text_browser.setFont(font)
-            data = in_stream.readAll()
-            self.ui.text_browser.setPlainText(data)
-            self.ui.text_edit.setPlainText(data)
-        else:
-            try:
-                self.read_file(filename)
-            except:
-                traceback.print_exc(2)
-                self.ui.statusbar.showMessage("Reading the file failed", 300)
+        try:
+            filename = self.file_system_model.filePath(index)
+            if filename.endswith('.txt'):
+                self.read_text(filename)
+                self.settings.setValue("text-file", filename)
+            else:
+                self.read_audio(filename)
+                self.settings.setValue("audio-file", filename)
+        except:
+            traceback.print_exc(2)
+            self.ui.statusbar.showMessage("Reading the file failed", 300)
 
     @pyqtSlot()
     def save_crop_to_file(self):
         self.crop_count += 1
+        self.show_line(self.crop_count + 1)
         wave_file = wave.open(self.current_open_file_name + "_crop_" + str(self.crop_count) + '.wav', 'wb')
         wave_file.setnchannels(self.crop_nchannel)
         wave_file.setsampwidth(self.crop_stampwidth)
         wave_file.setframerate(self.crop_framerate)
         wave_file.writeframes(self.crop_to_save)
         wave_file.close()
+
+    def save_edited_text_to_file(self, text: str):
+        f = open(self.text_file.fileName(), "w")
+        f.write(text)
+        f.close()
 
     def crop_completed(self, remaining_ms):
         self.state = Window.State.Initial
@@ -396,5 +441,19 @@ class Window(QMainWindow):
         self.player.stop()
         self.play_timer.stop()
         self.wave.close()
+        self.wave = None
         self.ui.statusbar.showMessage(
             "Only %f seconds left thus this file is considered completed" % (remaining_ms / 1000))
+
+    @pyqtSlot(int)
+    def tab_changed(self, tab_index):
+        if tab_index == 0:
+            if self.text_edited:
+                self.sentence_tokens = tokenizer.nepali_tokenizer.tokenize(self.ui.text_edit.toPlainText())
+                self.show_line(self.crop_count + 1)
+        if tab_index == 1:
+            self.text_edited = False
+
+    @pyqtSlot()
+    def text_editor_changed(self):
+        self.text_edited = True
