@@ -31,6 +31,7 @@ class Window(QMainWindow):
     def __init__(self):
 
         super().__init__()
+        self.last_audio_file = None
         self.player = QMediaPlayer()
         self.sentence_tokens = []
         self.wave = None
@@ -54,7 +55,8 @@ class Window(QMainWindow):
         self.save_crop_signal.connect(self.save_crop_to_file)
         self.ui.widget_tab.currentChanged.connect(self.tab_changed)
         self.ui.text_edit.textChanged.connect(self.text_editor_changed)
-        self.settings = QSettings
+        self.settings = QSettings()
+        self._setup_from_settings()
 
     def _setup_matplotlib(self):
 
@@ -94,7 +96,20 @@ class Window(QMainWindow):
         self.ui.directory_view.doubleClicked.connect(self.file_selected)
 
     def _setup_from_settings(self):
-        pass
+        self.settings.sync()
+        if self.settings.value("text-file"):
+            self.read_text(self.settings.value("text-file"))
+
+        if self.settings.value("audio-file"):
+            if self.settings.value("audio-pos"):
+                if self.settings.value("crop-count"):
+                    self.read_audio(self.settings.value("audio-file"), int(self.settings.value("audio-pos")))
+                    self.crop_count = int(self.settings.value("crop-count"))
+                    self.show_line(self.crop_count + 1)
+                else:
+                    self.read_audio(self.settings.value("audio-file"))
+            else:
+                self.read_audio(self.settings.value("audio-file"))
 
     def plot(self, ydata_byte, start_pos=0):
         ''' plot some random stuff '''
@@ -106,7 +121,6 @@ class Window(QMainWindow):
         self.view_limit_range = (start_pos, plotdatax[-1])
         _max = max(plotdatay)
         self.figure.get_axes()[0].set_ylim(-_max, _max)
-        print("The real plot limit", (start_pos, plotdatax[-1]))
         self.audio_plot.set_data(plotdatax, plotdatay)
         # refresh canvas
         self.canvas.draw()
@@ -139,7 +153,6 @@ class Window(QMainWindow):
             self.play_timer.stop()
         else:
             self.player.play()
-
             self.play_timer.start()
         self.playing = not self.playing
 
@@ -277,11 +290,24 @@ class Window(QMainWindow):
         pass
         # self.ui.progressBar.setValue(int(position / self.player.duration() * 100))
 
-    def read_audio(self, filename):
+    def read_audio(self, filename, pos=0):
+
+        if self.wave:
+            if filename == self.last_audio_file:
+                return
+            elif QMessageBox.question(self, "Warning",
+                                      "If you open a new file, You cannot continue the progress of this file.\n So open new file only when you are done with this file\n Are you done with this file?",
+                                      QMessageBox.Yes | QMessageBox.No | QMessageBox.Warning
+                                      ) == QMessageBox.No:
+                return
+
+            self.wave.close()
+        self.last_audio_file = os.path.abspath(filename)
         # reset the cursors to default values
         self.wave = wave.open(filename, 'rb')
         self.channels = self.wave.getnchannels()
         self.rate = self.wave.getframerate()
+        self.wave.setpos(pos)
         nframes = self.seconds_to_prefetch * self.wave.getframerate()
 
         self.playing = False
@@ -292,10 +318,12 @@ class Window(QMainWindow):
             return
 
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(filename)))
-        self.plot(self.data)
+        if pos:
+            self.seek_frame(pos)
+        self.plot(self.data, pos)
         nframes = min(self.wave.getnframes(), nframes)
-        self.data_shift = 0
-        self.play_limit = (0, (nframes * 1000) / self.wave.getframerate())
+        self.data_shift = pos * 2
+        self.play_limit = ((pos * 1000) / self.wave.getframerate(), (nframes * 1000) / self.wave.getframerate())
         self.crop_count = 0
         self.current_open_file_name = filename[:-4]
 
@@ -315,6 +343,7 @@ class Window(QMainWindow):
                 self.ui.text_browser.setPlainText(self.sentence_tokens[0])
         else:
             self.ui.text_browser.setPlainText("-----Please open a text file to view it's content------")
+        return True
 
     def read_text(self, filename):
         self.text_file = QFile(filename)
@@ -385,7 +414,7 @@ class Window(QMainWindow):
                            (self.total_frames_read * 1000) / self.wave.getframerate())
         self.view_limit_range = (self.crop_line_2_pos, self.total_frames_read)
         self.seek_frame(self.crop_line_2_pos)
-        self.settings.setVallue("audio-pos", self.crop_line_2_pos)
+        self.settings.setValue("audio-pos", self.crop_line_2_pos)
         self.crop_line_1.set_data([], [])
         self.crop_line_2.set_data([], [])
         self.crop_line_1.set_color("red")
@@ -400,9 +429,12 @@ class Window(QMainWindow):
             if filename.endswith('.txt'):
                 self.read_text(filename)
                 self.settings.setValue("text-file", filename)
-            else:
-                self.read_audio(filename)
+            elif self.read_audio(filename):
                 self.settings.setValue("audio-file", filename)
+                self.settings.setValue("crop-count", 0)
+                self.settings.setValue("audio-pos", 0)
+                self.settings.sync()
+
         except:
             traceback.print_exc(2)
             self.ui.statusbar.showMessage("Reading the file failed", 300)
@@ -417,6 +449,8 @@ class Window(QMainWindow):
         wave_file.setframerate(self.crop_framerate)
         wave_file.writeframes(self.crop_to_save)
         wave_file.close()
+        self.settings.setValue("crop-count", self.crop_count)
+        self.settings.sync()
 
     def save_edited_text_to_file(self, text: str):
         f = open(self.text_file.fileName(), "w")
@@ -444,16 +478,25 @@ class Window(QMainWindow):
         self.wave = None
         self.ui.statusbar.showMessage(
             "Only %f seconds left thus this file is considered completed" % (remaining_ms / 1000))
+        self.settings.setValue('audio-file', None)
+        self.settings.sync()
 
     @pyqtSlot(int)
     def tab_changed(self, tab_index):
         if tab_index == 0:
             if self.text_edited:
+                self.save_edited_text_to_file(self.ui.text_edit.toPlainText())
                 self.sentence_tokens = tokenizer.nepali_tokenizer.tokenize(self.ui.text_edit.toPlainText())
                 self.show_line(self.crop_count + 1)
         if tab_index == 1:
-            self.text_edited = False
+            if tab_index == 1:
+                self.text_edited = False
 
     @pyqtSlot()
     def text_editor_changed(self):
         self.text_edited = True
+
+    @pyqtSlot()
+    def close(self):
+        self.settings.sync()
+        super()
