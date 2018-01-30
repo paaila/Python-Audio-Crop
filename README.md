@@ -8,4 +8,5 @@ It has a text viewer to view scripts and a sound visualiazation to slice audio a
 * 'Backspace' key to undo
 
 __Note:__
-After placement of two crop lines, Pressing "Enter key" will save the crop to filesystem.
+* After placement of two crop lines, Pressing "Enter key" will save the crop to filesystem.
+* The files to be edited must be first copied into the "Data" folder to be visible in the editor.

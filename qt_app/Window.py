@@ -104,19 +104,23 @@ class Window(QMainWindow):
 
     def _setup_from_settings(self):
         self.settings.sync()
-        if self.settings.value("text-file"):
-            self.read_text(self.settings.value("text-file"))
+        try:
+            if self.settings.value("text-file"):
+                self.read_text(self.settings.value("text-file"))
 
-        if self.settings.value("audio-file"):
-            if self.settings.value("audio-pos"):
-                if self.settings.value("crop-count"):
-                    self.read_audio(self.settings.value("audio-file"), int(self.settings.value("audio-pos")))
-                    self.crop_count = int(self.settings.value("crop-count"))
-                    self.show_line(self.crop_count + 1)
+            if self.settings.value("audio-file"):
+                if self.settings.value("audio-pos"):
+                    if self.settings.value("crop-count"):
+                        self.read_audio(self.settings.value("audio-file"), int(self.settings.value("audio-pos")))
+                        self.crop_count = int(self.settings.value("crop-count"))
+                        self.show_line(self.crop_count + 1)
+                    else:
+                        self.read_audio(self.settings.value("audio-file"))
                 else:
                     self.read_audio(self.settings.value("audio-file"))
-            else:
-                self.read_audio(self.settings.value("audio-file"))
+        except:
+            QMessageBox.warning(self, "Unexpected", "Last opened files may have been deleted. Thus they were not loaded.", QMessageBox.Ok)
+
 
     def plot(self, ydata_byte, start_pos=0):
         ''' plot some random stuff '''
@@ -355,7 +359,7 @@ class Window(QMainWindow):
     def read_text(self, filename):
         self.text_file = QFile(filename)
         if not self.text_file.open(QFile.ReadOnly | QFile.Text):
-            QMessageBox.warning(self, "Application", "Cannot read file", self.text_file.errorString())
+            QMessageBox.warning(self, "Application", "Cannot read file " + self.text_file.errorString(), QMessageBox.Ok)
             return
         in_stream = QTextStream(self.text_file)
         # self.ui.text_edit.setPlainText(in_stream.readAll())
