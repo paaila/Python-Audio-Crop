@@ -5,14 +5,16 @@ from enum import Enum
 
 import numpy
 from PyQt5.QtCore import QUrl, QTimer, QDir, QModelIndex, QFile, QTextStream
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QPoint
 from PyQt5.QtCore import pyqtSignal
 from PyQt5.QtCore import QSettings
 from PyQt5.QtCore import pyqtSlot
 from PyQt5.QtMultimedia import QMediaPlayer, QMediaContent
-from PyQt5.QtWidgets import QMainWindow, QFileSystemModel, QMessageBox
+from PyQt5.QtWidgets import QMainWindow, QFileSystemModel, QMessageBox, QMenu, QAction, QFontDialog
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
+from PyQt5.QtGui import QActionEvent,QFont
 
 from nlp import tokenizer
 from qt_ui.MainWindow import Ui_MainWindow
@@ -50,11 +52,12 @@ class Window(QMainWindow):
         self.crop_line_2_pos = None
         self.play_limit = (0, 0)
         self.current_zoom = 100
-        self.seconds_to_prefetch = 60
+        self.seconds_to_prefetch = 30
         self.minimum_file_file_length = 2.5
         self.save_crop_signal.connect(self.save_crop_to_file)
         self.ui.widget_tab.currentChanged.connect(self.tab_changed)
         self.ui.text_edit.textChanged.connect(self.text_editor_changed)
+        self._setup_document_editor()
         self.settings = QSettings()
         self._setup_from_settings()
 
@@ -94,6 +97,10 @@ class Window(QMainWindow):
         # self.ui.directory_view.scrollTo(index)
         # self.ui.directory_view.setCurrentIndex(index)
         self.ui.directory_view.doubleClicked.connect(self.file_selected)
+
+    def _setup_document_editor(self):
+        self.ui.text_edit.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.ui.text_edit.customContextMenuRequested.connect(self.text_edit_context_menu)
 
     def _setup_from_settings(self):
         self.settings.sync()
@@ -218,7 +225,7 @@ class Window(QMainWindow):
         self.canvas.draw()
 
     def eventFilter(self, event):
-        print("New Event", event.type())
+
         return False
 
     def keyPressEvent(self, event):
@@ -387,26 +394,26 @@ class Window(QMainWindow):
         if remaining_ms < 3000:
             return self.crop_completed(remaining_ms)
 
-        # the no of frames that have been loaded into memory
+        # the no of frames that will remain after crop in the memory
         frames_in_memory = int(self.total_frames_read - self.crop_line_2_pos)
+        # the starting position of current data in bytes
         data_pos = int(self.crop_line_2_pos * 2 - self.data_shift)
+        # byte value for the data shift in memory
         self.data_shift = self.crop_line_2_pos * 2
-        # all the data from sound have been read into the memory
-        if frames_in_memory == remaining_frames:
-            self.data = self.data[data_pos:len(self.data)]
 
-        else:
-            # the no of maximum frames that will be showed in preview
-            total_frames_required = self.seconds_to_prefetch * self.wave.getframerate()
-            # the no of frames that needs to be read from disk
-            frames_to_read = total_frames_required - frames_in_memory
+        # the no of maximum frames that will be showed in preview
+        total_frames_required = self.seconds_to_prefetch * self.wave.getframerate()
+        # the no of frames that needs to be read from disk
+        frames_to_read = total_frames_required - frames_in_memory
+        if frames_to_read>0:
             # the file may not have that many frames, so it's the minimun of frames to read and frames in disk remain
             #  to read
             frames_that_will_be_read = min(self.wave.getnframes() - self.total_frames_read, frames_to_read)
 
             self.total_frames_read += frames_that_will_be_read
             self.data = self.data[data_pos:len(self.data)] + self.wave.readframes(frames_that_will_be_read)
-
+        else:
+            self.data=self.data[data_pos:len(self.data)]
         self.plot(self.data, self.crop_line_2_pos)
         # frames_remain_to_read = self.wave.getnframes() - self.total_frames_read
         self.state = Window.State.Initial
@@ -500,3 +507,20 @@ class Window(QMainWindow):
     def close(self):
         self.settings.sync()
         super()
+
+    @pyqtSlot(QPoint)
+    def text_edit_context_menu(self, point: QPoint):
+        print(point.x(), point.y())
+        _global = self.ui.text_edit.mapToGlobal(point)
+        # contextMenu=QMenu("Context menu", self.ui.text_edit)
+        contextMenu = self.ui.text_edit.createStandardContextMenu()
+        contextMenu.addAction("Select Font", self.select_font)
+
+        contextMenu.exec(_global);
+
+    @pyqtSlot()
+    def select_font(self):
+        font, ok = QFontDialog.getFont(self)
+        if ok:
+            self.ui.text_edit.setFont(font)
+
