@@ -14,7 +14,7 @@ from PyQt5.QtWidgets import QMainWindow, QFileSystemModel, QMessageBox, QMenu, Q
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
-from PyQt5.QtGui import QActionEvent,QFont
+from PyQt5.QtGui import QActionEvent, QFont, QFontInfo
 
 from nlp import tokenizer
 from qt_ui.MainWindow import Ui_MainWindow
@@ -52,14 +52,15 @@ class Window(QMainWindow):
         self.crop_line_2_pos = None
         self.play_limit = (0, 0)
         self.current_zoom = 100
-        self.seconds_to_prefetch = 30
-        self.minimum_file_file_length = 2.5
+        self.seconds_to_prefetch = 24
+        self.minimum_file_file_length = 1.0
         self.save_crop_signal.connect(self.save_crop_to_file)
         self.ui.widget_tab.currentChanged.connect(self.tab_changed)
         self.ui.text_edit.textChanged.connect(self.text_editor_changed)
         self._setup_document_editor()
         self.settings = QSettings()
         self._setup_from_settings()
+        self.preeti = QFont("./preetiTTf")
 
     def _setup_matplotlib(self):
 
@@ -119,8 +120,9 @@ class Window(QMainWindow):
                 else:
                     self.read_audio(self.settings.value("audio-file"))
         except:
-            QMessageBox.warning(self, "Unexpected", "Last opened files may have been deleted. Thus they were not loaded.", QMessageBox.Ok)
-
+            QMessageBox.warning(self, "Unexpected",
+                                "Last opened files may have been deleted. Thus they were not loaded.", QMessageBox.Ok)
+        print('', end='')
 
     def plot(self, ydata_byte, start_pos=0):
         ''' plot some random stuff '''
@@ -128,10 +130,11 @@ class Window(QMainWindow):
         plotdatay = ploty[0:len(ploty):Window.samling_ratio]
         plotdatax = [x for x in range(start_pos, len(ploty) + start_pos, Window.samling_ratio)]
 
-        self.set_view_range(start_pos, plotdatax[-1])
+        self.set_view_range(start_pos - 1000, plotdatax[-1])
         self.view_limit_range = (start_pos, plotdatax[-1])
         _max = max(plotdatay)
         self.figure.get_axes()[0].set_ylim(-_max, _max)
+        self.ymax=_max
         self.audio_plot.set_data(plotdatax, plotdatay)
         # refresh canvas
         self.canvas.draw()
@@ -187,8 +190,8 @@ class Window(QMainWindow):
         if (current_time_in_milli < 0):
             current_time_in_milli = 0
         current_x = int(event.xdata)
-        if (current_x < 0):
-            current_x = 0
+        if (current_x < (self.data_shift // 2)):
+            current_x = self.data_shift // 2
 
         if self.state == Window.State.Initial:
             self.crop_line_1.set_data([current_x, current_x], [-self.ymax, self.ymax])
@@ -224,7 +227,7 @@ class Window(QMainWindow):
                 new_view[0] = self.view_limit_range[0]
         if new_view[0] > new_view[1]:
             return
-        self.figure.get_axes()[0].set_xlim(new_view[0], new_view[1])
+        self.figure.get_axes()[0].set_xlim(new_view[0] - 1000, new_view[1] + 1000)
         self.current_view = new_view
         self.canvas.draw()
 
@@ -251,14 +254,10 @@ class Window(QMainWindow):
                     self.crop_line_2.set_color("green")
                     self.zoom_to_crop()
                     self.state = Window.State.TwoCursorPlaced
-                    self.ui.statusbar.showMessage("Press Enter to save the clip to file", 3000)
+                    self.seek_frame(self.crop_line_2_pos-self.wave.getframerate()//2)
+                    self.ui.statusbar.showMessage("Hit 'Enter' to save the clip to file", 3000)
 
             elif self.state == Window.State.TwoCursorPlaced:
-                self.crop_to_save = self.data[self.crop_line_1_pos * 2: self.crop_line_2_pos * 2]
-                self.crop_nchannel = self.wave.getnchannels()
-                self.crop_stampwidth = self.wave.getsampwidth()
-                self.crop_framerate = self.wave.getframerate()
-                self.save_crop_signal.emit()
                 self.update_cropped_plot()
 
         if key == Qt.Key_Backspace:
@@ -313,6 +312,8 @@ class Window(QMainWindow):
                 return
 
             self.wave.close()
+        self.playing = False
+        print("reading new file")
         self.last_audio_file = os.path.abspath(filename)
         # reset the cursors to default values
         self.wave = wave.open(filename, 'rb')
@@ -321,20 +322,17 @@ class Window(QMainWindow):
         self.wave.setpos(pos)
         nframes = self.seconds_to_prefetch * self.wave.getframerate()
 
-        self.playing = False
         self.data = self.wave.readframes(nframes)
-        self.total_frames_read = len(self.data) // 2
-        if self.total_frames_read / self.wave.getframerate() < self.minimum_file_file_length:
-            self.ui.statusbar.showMessage("The file is too short.")
-            return
+        self.total_frames_read = pos+len(self.data) // 2
 
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(filename)))
         if pos:
             self.seek_frame(pos)
-        self.plot(self.data, pos)
         nframes = min(self.wave.getnframes(), nframes)
         self.data_shift = pos * 2
-        self.play_limit = ((pos * 1000) / self.wave.getframerate(), (nframes * 1000) / self.wave.getframerate())
+        pos_1 = (pos * 1000) / self.wave.getframerate()
+        pos_2 = pos_1 + ((nframes * 1000) / self.wave.getframerate())
+        self.play_limit = (pos_1, pos_2)
         self.crop_count = 0
         self.current_open_file_name = filename[:-4]
 
@@ -342,6 +340,8 @@ class Window(QMainWindow):
         if not self.canvas_scroll_connection:
             self.canvas_click_connection = self.canvas.mpl_connect("button_press_event", self.canvas_click_listener)
             self.canvas_scroll_connection = self.canvas.mpl_connect("scroll_event", self.canvas_scroll_listener)
+
+        self.plot(self.data, pos)
         self.crop_line_1_pos = None
         self.crop_line_2_pos = None
         self.state = Window.State.Initial
@@ -351,9 +351,10 @@ class Window(QMainWindow):
         self.crop_line_1.set_color("red")
         if self.sentence_tokens:
             if self.sentence_tokens:
-                self.ui.text_browser.setPlainText(self.sentence_tokens[0])
+                self.show_line(1)
         else:
             self.ui.text_browser.setPlainText("-----Please open a text file to view it's content------")
+        self.player.play()
         return True
 
     def read_text(self, filename):
@@ -391,17 +392,24 @@ class Window(QMainWindow):
 
     def update_cropped_plot(self):
         # frames remain in the total sound clip
+        self.crop_nchannel = self.wave.getnchannels()
+        self.crop_stampwidth = self.wave.getsampwidth()
+        self.crop_framerate = self.wave.getframerate()
+        self.audio_pos = self.crop_line_2_pos + 1
+
         remaining_frames = (self.wave.getnframes()) - int(self.crop_line_2_pos)
         # time remain for compleliton of sound clip
         remaining_ms = (remaining_frames * 1000) / self.wave.getframerate()
 
-        if remaining_ms < 3000:
+        if remaining_ms < 1000:
             return self.crop_completed(remaining_ms)
 
         # the no of frames that will remain after crop in the memory
         frames_in_memory = int(self.total_frames_read - self.crop_line_2_pos)
         # the starting position of current data in bytes
-        data_pos = int(self.crop_line_2_pos * 2 - self.data_shift)
+        data_crop_line_1 = int(self.crop_line_1_pos * 2 - self.data_shift)
+        data_crop_line_2 = int(self.crop_line_2_pos * 2 - self.data_shift)
+        self.crop_to_save = self.data[data_crop_line_1:data_crop_line_2]
         # byte value for the data shift in memory
         self.data_shift = self.crop_line_2_pos * 2
 
@@ -409,29 +417,28 @@ class Window(QMainWindow):
         total_frames_required = self.seconds_to_prefetch * self.wave.getframerate()
         # the no of frames that needs to be read from disk
         frames_to_read = total_frames_required - frames_in_memory
-        if frames_to_read>0:
+        if frames_to_read > 0:
             # the file may not have that many frames, so it's the minimun of frames to read and frames in disk remain
             #  to read
             frames_that_will_be_read = min(self.wave.getnframes() - self.total_frames_read, frames_to_read)
 
             self.total_frames_read += frames_that_will_be_read
-            self.data = self.data[data_pos:len(self.data)] + self.wave.readframes(frames_that_will_be_read)
+            self.data = self.data[data_crop_line_2:len(self.data)] + self.wave.readframes(frames_that_will_be_read)
         else:
-            self.data=self.data[data_pos:len(self.data)]
+            self.data = self.data[data_crop_line_2:len(self.data)]
         self.plot(self.data, self.crop_line_2_pos)
         # frames_remain_to_read = self.wave.getnframes() - self.total_frames_read
-        self.state = Window.State.Initial
+        self.state = Window.State.OneCursorPlaced
         self.play_limit = ((self.crop_line_2_pos * 1000) / self.wave.getframerate(),
                            (self.total_frames_read * 1000) / self.wave.getframerate())
         self.view_limit_range = (self.crop_line_2_pos, self.total_frames_read)
         self.seek_frame(self.crop_line_2_pos)
-        self.settings.setValue("audio-pos", self.crop_line_2_pos)
-        self.crop_line_1.set_data([], [])
+        self.crop_line_1_pos = self.crop_line_2_pos + 1
+        self.crop_line_1.set_data([self.crop_line_1_pos, self.crop_line_1_pos], [-self.ymax, self.ymax])
         self.crop_line_2.set_data([], [])
-        self.crop_line_1.set_color("red")
         self.crop_line_2.set_color("red")
-        self.crop_line_1_pos = None
         self.crop_line_2_pos = None
+        self.save_crop_signal.emit()
 
     @pyqtSlot(QModelIndex)
     def file_selected(self, index):
@@ -461,6 +468,7 @@ class Window(QMainWindow):
         wave_file.writeframes(self.crop_to_save)
         wave_file.close()
         self.settings.setValue("crop-count", self.crop_count)
+        self.settings.setValue("audio-pos", self.audio_pos)
         self.settings.sync()
 
     def save_edited_text_to_file(self, text: str):
@@ -510,6 +518,9 @@ class Window(QMainWindow):
     @pyqtSlot()
     def close(self):
         self.settings.sync()
+        if not self.canvas_scroll_connection:
+            self.canvas.mpl_disconnect(self.canvas_click_connection)
+            self.canvas.mpl_disconnect(self.canvas_scroll_connection)
         super()
 
     @pyqtSlot(QPoint)
@@ -519,12 +530,14 @@ class Window(QMainWindow):
         # contextMenu=QMenu("Context menu", self.ui.text_edit)
         contextMenu = self.ui.text_edit.createStandardContextMenu()
         contextMenu.addAction("Select Font", self.select_font)
-
+        contextMenu.setFont(self.font())
         contextMenu.exec(_global);
 
     @pyqtSlot()
     def select_font(self):
         font, ok = QFontDialog.getFont(self)
-        if ok:
-            self.ui.text_edit.setFont(font)
 
+        if ok:
+            params = font.toString().split(",")
+            self.ui.text_edit.setStyleSheet("font-family :%s;font-size:%spt;" % (params[0], params[1]))
+            self.ui.text_browser.setStyleSheet("font-family :%s;font-size:%spt;" % (params[0], params[1]))

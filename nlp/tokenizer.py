@@ -5,7 +5,7 @@ import re
 # all characters are properly recognized as an entity:
 class SentenceTokenizer:
 
-    def __init__(self, seperators=["।", "?", "\n"]):
+    def __init__(self, seperators=["।", "?", "\n","|"]):
         self.seperators = seperators
         self.regex = re.compile('[' + ''.join(seperators) + ']')
         pass
