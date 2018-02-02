@@ -52,7 +52,7 @@ class Window(QMainWindow):
         self.crop_line_2_pos = None
         self.play_limit = (0, 0)
         self.current_zoom = 100
-        self.seconds_to_prefetch = 24
+        self.seconds_to_prefetch = 27
         self.minimum_file_file_length = 1.0
         self.save_crop_signal.connect(self.save_crop_to_file)
         self.ui.widget_tab.currentChanged.connect(self.tab_changed)
@@ -134,9 +134,14 @@ class Window(QMainWindow):
         self.view_limit_range = (start_pos, plotdatax[-1])
         _max = max(plotdatay)
         self.figure.get_axes()[0].set_ylim(-_max, _max)
-        self.ymax=_max
+        self.ymax = _max
         self.audio_plot.set_data(plotdatax, plotdatay)
+
+        self.crop_line_1_pos = plotdatax[0]
+        self.crop_line_1.set_data([self.crop_line_1_pos, self.crop_line_1_pos], [-_max, _max])
+        self.crop_line_1.set_color("green")
         # refresh canvas
+        self.state = Window.State.OneCursorPlaced
         self.canvas.draw()
 
     def set_view_range(self, start, end):
@@ -254,7 +259,7 @@ class Window(QMainWindow):
                     self.crop_line_2.set_color("green")
                     self.zoom_to_crop()
                     self.state = Window.State.TwoCursorPlaced
-                    self.seek_frame(self.crop_line_2_pos-self.wave.getframerate()//2)
+                    self.seek_frame(self.crop_line_2_pos - self.wave.getframerate() // 2)
                     self.ui.statusbar.showMessage("Hit 'Enter' to save the clip to file", 3000)
 
             elif self.state == Window.State.TwoCursorPlaced:
@@ -323,7 +328,7 @@ class Window(QMainWindow):
         nframes = self.seconds_to_prefetch * self.wave.getframerate()
 
         self.data = self.wave.readframes(nframes)
-        self.total_frames_read = pos+len(self.data) // 2
+        self.total_frames_read = pos + len(self.data) // 2
 
         self.player.setMedia(QMediaContent(QUrl.fromLocalFile(filename)))
         if pos:
@@ -342,13 +347,9 @@ class Window(QMainWindow):
             self.canvas_scroll_connection = self.canvas.mpl_connect("scroll_event", self.canvas_scroll_listener)
 
         self.plot(self.data, pos)
-        self.crop_line_1_pos = None
         self.crop_line_2_pos = None
-        self.state = Window.State.Initial
         self.crop_line_2.set_data([], [])
         self.crop_line_2.set_color("red")
-        self.crop_line_1.set_data([], [])
-        self.crop_line_1.set_color("red")
         if self.sentence_tokens:
             if self.sentence_tokens:
                 self.show_line(1)
@@ -426,15 +427,14 @@ class Window(QMainWindow):
             self.data = self.data[data_crop_line_2:len(self.data)] + self.wave.readframes(frames_that_will_be_read)
         else:
             self.data = self.data[data_crop_line_2:len(self.data)]
-        self.plot(self.data, self.crop_line_2_pos)
+
         # frames_remain_to_read = self.wave.getnframes() - self.total_frames_read
-        self.state = Window.State.OneCursorPlaced
         self.play_limit = ((self.crop_line_2_pos * 1000) / self.wave.getframerate(),
                            (self.total_frames_read * 1000) / self.wave.getframerate())
         self.view_limit_range = (self.crop_line_2_pos, self.total_frames_read)
         self.seek_frame(self.crop_line_2_pos)
-        self.crop_line_1_pos = self.crop_line_2_pos + 1
-        self.crop_line_1.set_data([self.crop_line_1_pos, self.crop_line_1_pos], [-self.ymax, self.ymax])
+
+        self.plot(self.data, self.crop_line_2_pos)
         self.crop_line_2.set_data([], [])
         self.crop_line_2.set_color("red")
         self.crop_line_2_pos = None
