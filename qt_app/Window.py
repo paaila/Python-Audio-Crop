@@ -383,7 +383,7 @@ class Window(QMainWindow):
 
     def zoom_to_crop(self):
         ##TODO : make crop from line1 and line2 position
-        self.set_view_range(self.crop_line_1_pos - 1000, self.crop_line_2_pos + 1000)
+        self.set_view_range(self.crop_line_1_pos - 1000, self.crop_line_2_pos + self.wave.getframerate()*2)
         # cropped_data = self.data[self.crop_line_1_pos:self.crop_line_2_pos]
         self.play_limit_bak = self.play_limit
         self.play_limit = ((self.crop_line_1_pos * 1000) / self.wave.getframerate(),
