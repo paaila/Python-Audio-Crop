@@ -383,7 +383,7 @@ class Window(QMainWindow):
 
     def zoom_to_crop(self):
         ##TODO : make crop from line1 and line2 position
-        self.set_view_range(self.crop_line_1_pos - 1000, self.crop_line_2_pos + self.wave.getframerate()*2)
+        self.set_view_range(self.crop_line_1_pos - 1000, self.crop_line_2_pos + self.wave.getframerate() * 2)
         # cropped_data = self.data[self.crop_line_1_pos:self.crop_line_2_pos]
         self.play_limit_bak = self.play_limit
         self.play_limit = ((self.crop_line_1_pos * 1000) / self.wave.getframerate(),
@@ -461,7 +461,13 @@ class Window(QMainWindow):
     def save_crop_to_file(self):
         self.crop_count += 1
         self.show_line(self.crop_count + 1)
-        wave_file = wave.open(self.current_open_file_name + "_crop_" + str(self.crop_count) + '.wav', 'wb')
+        # strip the .wav.
+        file = self.current_open_file_name[:-4]
+        if not os.path.exists(file+os.path.sep):
+            os.makedirs(file+os.path.sep)
+        file_to_save = os.path.join(file, "crop_" + str(self.crop_count) + '.wav')
+
+        wave_file = wave.open(file_to_save, 'wb')
         wave_file.setnchannels(self.crop_nchannel)
         wave_file.setsampwidth(self.crop_stampwidth)
         wave_file.setframerate(self.crop_framerate)
