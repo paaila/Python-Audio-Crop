@@ -2,7 +2,7 @@ import os
 import traceback
 import wave
 from enum import Enum
-
+import datetime
 import numpy
 from PyQt5.QtCore import QUrl, QTimer, QDir, QModelIndex, QFile, QTextStream
 from PyQt5.QtCore import Qt, QPoint
@@ -23,7 +23,7 @@ from qt_ui.MainWindow import Ui_MainWindow
 class Window(QMainWindow):
     save_crop_signal = pyqtSignal()
 
-    samling_ratio = 60
+    
 
     class State(Enum):
         Initial = 1
@@ -31,8 +31,12 @@ class Window(QMainWindow):
         TwoCursorPlaced = 3
 
     def __init__(self):
-
         super().__init__()
+
+        self.sampling_ratio = 300
+        self.seconds_to_prefetch = 27
+
+
         self.last_audio_file = None
         self.player = QMediaPlayer()
         self.sentence_tokens = []
@@ -52,13 +56,13 @@ class Window(QMainWindow):
         self.crop_line_2_pos = None
         self.play_limit = (0, 0)
         self.current_zoom = 100
-        self.seconds_to_prefetch = 27
+
         self.minimum_file_file_length = 1.0
         self.save_crop_signal.connect(self.save_crop_to_file)
         self.ui.widget_tab.currentChanged.connect(self.tab_changed)
         self.ui.text_edit.textChanged.connect(self.text_editor_changed)
         self._setup_document_editor()
-        self.settings = QSettings()
+        self.settings = QSettings("Paaila","Audio Tokenizer")
         self._setup_from_settings()
         self.preeti = QFont("./preetiTTf")
 
@@ -122,13 +126,13 @@ class Window(QMainWindow):
         except:
             QMessageBox.warning(self, "Unexpected",
                                 "Last opened files may have been deleted. Thus they were not loaded.", QMessageBox.Ok)
-        print('', end='')
+        print("[Info] Settings being load from :",self.settings.fileName())
 
     def plot(self, ydata_byte, start_pos=0):
         ''' plot some random stuff '''
         ploty = numpy.fromstring(ydata_byte, numpy.int16)
-        plotdatay = ploty[0:len(ploty):Window.samling_ratio]
-        plotdatax = [x for x in range(start_pos, len(ploty) + start_pos, Window.samling_ratio)]
+        plotdatay = ploty[0:len(ploty):self.sampling_ratio]
+        plotdatax = [x for x in range(start_pos, len(ploty) + start_pos, self.sampling_ratio)]
 
         self.set_view_range(start_pos - 1000, plotdatax[-1])
         self.view_limit_range = (start_pos, plotdatax[-1])
@@ -364,6 +368,7 @@ class Window(QMainWindow):
             QMessageBox.warning(self, "Application", "Cannot read file " + self.text_file.errorString(), QMessageBox.Ok)
             return
         in_stream = QTextStream(self.text_file)
+        in_stream.setCodec("UTF-8")
         # self.ui.text_edit.setPlainText(in_stream.readAll())
 
         # font: QFont = self.ui.text_browser.font()
@@ -462,11 +467,12 @@ class Window(QMainWindow):
         self.crop_count += 1
         self.show_line(self.crop_count + 1)
         # strip the .wav.
-        file = self.current_open_file_name[:-4]
-        if not os.path.exists(file+os.path.sep):
-            os.makedirs(file+os.path.sep)
-        file_to_save = os.path.join(file, "crop_" + str(self.crop_count) + '.wav')
-
+        directory, file_name = os.path.split(os.path.abspath(self.current_open_file_name))
+        file_name = file_name.strip()
+        directory = os.path.join(directory, file_name)
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+        file_to_save = os.path.join(directory,file_name+"__line__" + str(self.crop_count) + '.wav')
         wave_file = wave.open(file_to_save, 'wb')
         wave_file.setnchannels(self.crop_nchannel)
         wave_file.setsampwidth(self.crop_stampwidth)
@@ -478,8 +484,8 @@ class Window(QMainWindow):
         self.settings.sync()
 
     def save_edited_text_to_file(self, text: str):
-        f = open(self.text_file.fileName(), "w")
-        f.write(text)
+        f = open(self.text_file.fileName(), "wb")
+        f.write(text.encode("utf-8"))
         f.close()
 
     def crop_completed(self, remaining_ms):
