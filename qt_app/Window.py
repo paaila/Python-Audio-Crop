@@ -375,7 +375,8 @@ class Window(QMainWindow):
         # font.setPixelSize(40)
         # self.ui.text_browser.setFont(font)
         data = in_stream.readAll()
-        self.sentence_tokens = tokenizer.nepali_tokenizer.tokenize(data)
+        # self.sentence_tokens = tokenizer.nepali_tokenizer.tokenize(data)
+        self.sentence_tokens = data.split("\n")
         if self.wave:
             if self.crop_count >= len(self.sentence_tokens):
                 self.ui.text_browse.setPlainText("-----Please open a text file to view it's content------")
